@@ -214,3 +214,132 @@ def genetic_algorithm(func_objetivo, bounds=(-3, 3), num_generaciones=30, tam_po
     print(f'Mejor solución encontrada (Genético): ({mejor_sol[0]:.4f}, {mejor_sol[1]:.4f}), f(x,y): {mejor_val:.4f}')
     plt.ioff()
     plt.show()
+
+
+def pso(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=60, swarm_size=30, pause=0.25, mode='max'):
+    # Parámetros PSO adaptados de tu script original
+    w_max, w_min = 0.9, 0.4
+    c1, c2 = 1.5, 1.5
+    v_max_ratio = 0.2
+    trail_length = 6
+    grid_res = 160
+    
+    lo, hi = bounds
+    vmax = v_max_ratio * (hi - lo)
+    rng = np.random.default_rng(42)
+
+    # Inicialización del enjambre
+    pos = rng.uniform(lo, hi, size=(swarm_size, 2))
+    vel = rng.uniform(-vmax, vmax, size=(swarm_size, 2))
+
+    pbest_pos = pos.copy()
+    pbest_val = np.array([func_objetivo(x, y) for x, y in pbest_pos])
+
+    # Mejor global (gbest) dinámico según maximización/minimización
+    if mode == 'max':
+        gbest_idx = np.argmax(pbest_val)
+    else:
+        gbest_idx = np.argmin(pbest_val)
+
+    gbest_pos = pbest_pos[gbest_idx].copy()
+    gbest_val = pbest_val[gbest_idx]
+
+    history = [[pos[i].copy()] for i in range(swarm_size)]
+
+    # Preparar malla y figuras
+    X = np.linspace(lo, hi, grid_res)
+    Y = np.linspace(lo, hi, grid_res)
+    Xg, Yg = np.meshgrid(X, Y)
+    Zg = func_objetivo(Xg, Yg)
+
+    plt.ion()
+    fig = plt.figure(figsize=(14, 6))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122, projection='3d')
+
+    def dibujar(iteracion):
+        ax1.clear()
+        ax2.clear()
+
+        # Redibujar contorno 2D
+        cont = ax1.contourf(Xg, Yg, Zg, levels=40, cmap='viridis')
+        ax1.set_xlim(lo, hi)
+        ax1.set_ylim(lo, hi)
+        ax1.set_title(f'PSO ({mode.upper()}) - Iter {iteracion}/{num_iteraciones}')
+
+        if trail_length > 0:
+            for i in range(swarm_size):
+                trail = np.array(history[i][-trail_length:])
+                if trail.shape[0] > 1:
+                    ax1.plot(trail[:, 0], trail[:, 1], 'w-', alpha=0.5)
+
+        ax1.scatter(pos[:, 0], pos[:, 1], color='blue', s=30, edgecolor='black', label='Partículas')
+        ax1.scatter(pbest_pos[:, 0], pbest_pos[:, 1], color='green', s=20, marker='o', label='pbest')
+        ax1.scatter(gbest_pos[0], gbest_pos[1], color='red', s=50, marker='*', label='gbest')
+        ax1.legend(loc='upper right', fontsize='small')
+
+        # Redibujar Superficie 3D
+        ax2.plot_surface(Xg, Yg, Zg, cmap='viridis', alpha=0.8, linewidth=0, antialiased=False)
+        ax2.set_title('PSO - Superficie 3D')
+        ax2.set_xlim(lo, hi)
+        ax2.set_ylim(lo, hi)
+
+        fitness_curr = np.array([func_objetivo(x, y) for x, y in pos])
+        ax2.scatter(pos[:, 0], pos[:, 1], fitness_curr, color='blue', s=30, edgecolor='black')
+        pbest_vals = np.array([func_objetivo(x, y) for x, y in pbest_pos])
+        ax2.scatter(pbest_pos[:, 0], pbest_pos[:, 1], pbest_vals, color='green', s=20)
+        ax2.scatter(gbest_pos[0], gbest_pos[1], gbest_val, color='red', s=150, marker='*')
+        ax2.view_init(elev=35, azim=-60)
+
+        plt.draw()
+        plt.pause(pause)
+
+    # Ciclo principal de PSO
+    for t in range(1, num_iteraciones + 1):
+        w = w_max - (w_max - w_min) * (t - 1) / max(1, num_iteraciones - 1)
+
+        for i in range(swarm_size):
+            r1 = rng.random(2)
+            r2 = rng.random(2)
+
+            cognitive = c1 * r1 * (pbest_pos[i] - pos[i])
+            social = c2 * r2 * (gbest_pos - pos[i])
+            vel[i] = w * vel[i] + cognitive + social
+            
+            # Limitar velocidad y actualizar posición
+            vel[i] = np.clip(vel[i], -vmax, vmax)
+            pos[i] = pos[i] + vel[i]
+            pos[i, 0] = np.clip(pos[i, 0], lo, hi)
+            pos[i, 1] = np.clip(pos[i, 1], lo, hi)
+
+            history[i].append(pos[i].copy())
+
+        fitness = np.array([func_objetivo(x, y) for x, y in pos])
+
+        # Actualizar mejores personales (pbest)
+        if mode == 'max':
+            improved_mask = fitness > pbest_val
+        else:
+            improved_mask = fitness < pbest_val
+
+        if np.any(improved_mask):
+            pbest_pos[improved_mask] = pos[improved_mask]
+            pbest_val[improved_mask] = fitness[improved_mask]
+
+        # Actualizar mejor global (gbest)
+        if mode == 'max':
+            idx = np.argmax(pbest_val)
+            if pbest_val[idx] > gbest_val:
+                gbest_val = pbest_val[idx]
+                gbest_pos = pbest_pos[idx].copy()
+        else:
+            idx = np.argmin(pbest_val)
+            if pbest_val[idx] < gbest_val:
+                gbest_val = pbest_val[idx]
+                gbest_pos = pbest_pos[idx].copy()
+
+        dibujar(t)
+
+    print(f'Mejor solución encontrada (PSO): ({gbest_pos[0]:.4f}, {gbest_pos[1]:.4f}), f(x,y) = {gbest_val:.4f}')
+    plt.ioff()
+    plt.show()
