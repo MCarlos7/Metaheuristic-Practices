@@ -343,3 +343,138 @@ def pso(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=60, swarm_size=30, pa
     print(f'Mejor solución encontrada (PSO): ({gbest_pos[0]:.4f}, {gbest_pos[1]:.4f}), f(x,y) = {gbest_val:.4f}')
     plt.ioff()
     plt.show()
+    
+    
+def abc_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=80, num_fuentes=20, limit=15, pause=0.25, mode='max'):
+    lo, hi = bounds
+    rng = np.random.default_rng(123)
+    
+    # Inicialización de fuentes
+    sources = rng.uniform(lo, hi, size=(num_fuentes, 2))
+    values = np.array([func_objetivo(x, y) for x, y in sources])
+    trials = np.zeros(num_fuentes, dtype=int)
+    history = [ [sources[i].copy()] for i in range(num_fuentes) ]
+    
+    # Identificar el mejor inicial según el modo
+    best_idx = np.argmax(values) if mode == 'max' else np.argmin(values)
+    best_pos = sources[best_idx].copy()
+    best_val = values[best_idx]
+    
+    # Preparar malla y figuras
+    grid_res = 160
+    X = np.linspace(lo, hi, grid_res)
+    Y = np.linspace(lo, hi, grid_res)
+    Xg, Yg = np.meshgrid(X, Y)
+    Zg = func_objetivo(Xg, Yg)
+    
+    plt.ion()
+    fig = plt.figure(figsize=(14, 6))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122, projection='3d')
+    
+    # Ajuste para probabilidades dinámico
+    def fitness_to_prob(vals):
+        if mode == 'max':
+            shifted = vals - vals.min() + 1e-9
+        else:
+            shifted = vals.max() - vals + 1e-9
+        return shifted / shifted.sum()
+
+    def dibujar(iteracion):
+        ax1.clear()
+        ax2.clear()
+        
+        # Redibujar contorno 2D
+        cont = ax1.contourf(Xg, Yg, Zg, levels=40, cmap="viridis")
+        ax1.set_xlim(lo, hi)
+        ax1.set_ylim(lo, hi)
+        ax1.set_title(f"ABC ({mode.upper()}) - Iter {iteracion}/{num_iteraciones}")
+        
+        trail_length = 6
+        if trail_length > 0:
+            for i in range(num_fuentes):
+                trail = np.array(history[i][-trail_length:])
+                if trail.shape[0] > 1:
+                    ax1.plot(trail[:,0], trail[:,1], 'w-', alpha=0.5)
+                    
+        ax1.scatter(sources[:,0], sources[:,1], c='blue', s=35, label='Fuentes')
+        ax1.scatter(best_pos[0], best_pos[1], c='red', s=140, marker='*', label='Mejor global')
+        ax1.legend(loc='upper right', fontsize='small')
+        
+        # Superfície 3D
+        ax2.plot_surface(Xg, Yg, Zg, cmap="viridis", alpha=0.85, linewidth=0, antialiased=False)
+        ax2.set_title("ABC - Superficie 3D")
+        ax2.set_xlim(lo, hi)
+        ax2.set_ylim(lo, hi)
+        
+        current_vals = np.array([func_objetivo(x,y) for x,y in sources])
+        ax2.scatter(sources[:,0], sources[:,1], current_vals, c='blue', s=35, edgecolor='black')
+        ax2.scatter(best_pos[0], best_pos[1], best_val, c='red', s=180, marker='*')
+        ax2.view_init(elev=35, azim=-60)
+        
+        plt.draw()
+        plt.pause(pause)
+
+    # Bucle principal ABC
+    for t in range(1, num_iteraciones + 1):
+        # 1) Employed bees
+        for i in range(num_fuentes):
+            k = rng.integers(0, num_fuentes-1)
+            if k >= i: k += 1
+            phi = rng.uniform(-1.0, 1.0, size=2)
+            v = sources[i] + phi * (sources[i] - sources[k])
+            v = np.clip(v, lo, hi)
+            fv = func_objetivo(v[0], v[1])
+            
+            is_better = (fv > values[i]) if mode == 'max' else (fv < values[i])
+            if is_better:
+                sources[i] = v
+                values[i] = fv
+                trials[i] = 0
+            else:
+                trials[i] += 1
+            history[i].append(sources[i].copy())
+
+        # 2) Onlooker bees
+        probs = fitness_to_prob(values)
+        count = 0
+        while count < num_fuentes:
+            sel = rng.choice(np.arange(num_fuentes), p=probs)
+            k = rng.integers(0, num_fuentes-1)
+            if k >= sel: k += 1
+            phi = rng.uniform(-1.0, 1.0, size=2)
+            v = sources[sel] + phi * (sources[sel] - sources[k])
+            v = np.clip(v, lo, hi)
+            fv = func_objetivo(v[0], v[1])
+            
+            is_better = (fv > values[sel]) if mode == 'max' else (fv < values[sel])
+            if is_better:
+                sources[sel] = v
+                values[sel] = fv
+                trials[sel] = 0
+            else:
+                trials[sel] += 1
+                
+            history[sel].append(sources[sel].copy())
+            count += 1
+
+        # 3) Scout bees
+        for i in range(num_fuentes):
+            if trials[i] >= limit:
+                sources[i] = rng.uniform(lo, hi, size=2)
+                values[i] = func_objetivo(sources[i][0], sources[i][1])
+                trials[i] = 0
+                history[i].append(sources[i].copy())
+
+        # Actualizar mejor global final de la iteración
+        idx = np.argmax(values) if mode == 'max' else np.argmin(values)
+        is_new_best = (values[idx] > best_val) if mode == 'max' else (values[idx] < best_val)
+        if is_new_best:
+            best_val = values[idx]
+            best_pos = sources[idx].copy()
+
+        dibujar(t)
+
+    print(f"\nResultado final ABC -> mejor = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}")
+    plt.ioff()
+    plt.show()

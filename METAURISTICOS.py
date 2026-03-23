@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import time
 from MAIN.FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
 from MAIN.INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
-from MAIN.ALGORITMOS_BÚSQUEDA import hill_climbing, random_search, genetic_algorithm, pso
-
+from MAIN.ALGORITMOS_BÚSQUEDA import hill_climbing, random_search, genetic_algorithm, pso, abc_algorithm
 print("=== CONFIGURACIÓN DE OPTIMIZACIÓN ===")
 
 # 1. Función
@@ -24,6 +23,7 @@ print("1. Hill Climbing (Búsqueda Local)")
 print("2. Random Search (Búsqueda Aleatoria Pura)")
 print("3. Algoritmo Genético (Búsqueda Poblacional)")
 print("4. Particle Swarm Optimization - PSO (Enjambre de Partículas)")
+print("5. Artificial Bee Colony - ABC (Colonia de Abejas)")
 input_algo = input("Ingresa el número: ")
 
 map_func = {'1': peaks, '2': Ackley, '3': Rastrigin, '4': Sphere}
@@ -52,6 +52,10 @@ if input_func in map_func:
     elif input_algo == '4':
         print(f"\nIniciando PSO - Particle Swarm Optimization ({input_mode.upper()})...")
         pso(func_elegida, mode=input_mode)
+        
+    elif input_algo == '5':
+        print(f"\nIniciando ABC - Artificial Bee Colony ({input_mode.upper()})...")
+        abc_algorithm(func_elegida, mode=input_mode)
 
     else:
         print("Algoritmo no válido.")
