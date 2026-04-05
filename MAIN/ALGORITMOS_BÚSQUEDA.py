@@ -478,3 +478,124 @@ def abc_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=80, num_fue
     print(f"\nResultado final ABC -> mejor = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}")
     plt.ioff()
     plt.show()
+    
+def firefly_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=80, num_fireflies=30, pause=0.18, mode='max'):
+    lo, hi = bounds
+    dim = 2
+    beta0 = 1.0
+    gamma = 1.0
+    alpha_curr = 0.2
+    alpha_decay = 0.98
+    seed = 2025
+    grid_res = 160
+    trail_length = 8
+    scale_noise = 1.0 * (hi - lo)
+    
+    rng = np.random.default_rng(seed)
+    
+    # Inicialización de posiciones de las luciérnagas
+    x = rng.uniform(lo, hi, size=(num_fireflies, dim))
+    vals = np.array([func_objetivo(p[0], p[1]) for p in x])
+    
+    history = [ [x[i].copy()] for i in range(num_fireflies) ]
+    
+    # Evaluar mejor global inicial dependiendo del modo (max/min)
+    best_idx = np.argmax(vals) if mode == 'max' else np.argmin(vals)
+    best_pos = x[best_idx].copy()
+    best_val = vals[best_idx]
+    
+    # Preparar malla para la visualización
+    Xg = np.linspace(lo, hi, grid_res)
+    Yg = np.linspace(lo, hi, grid_res)
+    Xmg, Ymg = np.meshgrid(Xg, Yg)
+    Zmg = func_objetivo(Xmg, Ymg)
+    
+    plt.ion()
+    fig = plt.figure(figsize=(14, 6))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122, projection='3d')
+    
+    def dibujar(iteracion, alphas_vis=0.9):
+        ax1.clear()
+        ax2.clear()
+        
+        # Redibujar contorno 2D
+        cont = ax1.contourf(Xmg, Ymg, Zmg, levels=40, cmap='viridis')
+        ax1.set_xlim(lo, hi)
+        ax1.set_ylim(lo, hi)
+        ax1.set_title(f'Firefly Algorithm ({mode.upper()}) - Iter {iteracion}/{num_iteraciones}')
+        
+        # Dibujar rastro
+        if trail_length > 0:
+            for i in range(num_fireflies):
+                trail = np.array(history[i][-trail_length:])
+                if len(trail) > 1:
+                    alphas = np.linspace(0.1, 0.8, len(trail))
+                    L = trail.shape[0]
+                    for k in range(L-1):
+                        a = alphas_vis * (k+1) / L
+                        ax1.plot(trail[k:k+2, 0], trail[k:k+2, 1], linewidth=2, alpha=a, color='cyan')
+                        
+        ax1.scatter(x[:, 0], x[:, 1], c='blue', label='Fireflies', s=36)
+        ax1.scatter(best_pos[0], best_pos[1], c='red', s=140, marker='*', label='Best Global')
+        ax1.legend(loc='upper right', fontsize='small')
+        
+        # Superficie 3D
+        ax2.plot_surface(Xmg, Ymg, Zmg, cmap='viridis', alpha=0.85, linewidth=0, antialiased=False)
+        ax2.set_title('Firefly Algorithm - Superficie 3D')
+        ax2.set_xlim(lo, hi)
+        ax2.set_ylim(lo, hi)
+        ax2.scatter(x[:, 0], x[:, 1], vals, c='blue', s=36, edgecolor='black')
+        ax2.scatter(best_pos[0], best_pos[1], best_val, c='red', s=180, marker='*')
+        ax2.view_init(elev=35, azim=-60)
+        
+        plt.draw()
+        plt.pause(pause)
+
+    # Ciclo principal FA
+    for t in range(1, num_iteraciones + 1):
+        # Ordenar por brillo según el modo (descendente para max, ascendente para min)
+        if mode == 'max':
+            order = np.argsort(-vals)
+        else:
+            order = np.argsort(vals)
+            
+        for idx_i in range(num_fireflies):
+            i = order[idx_i]
+            xi = x[i].copy()
+            
+            # Recorrer luciérnagas más brillantes
+            for idx_j in range(idx_i):
+                j = order[idx_j]
+                xj = x[j]
+                
+                r = np.linalg.norm(xi - xj)
+                beta = beta0 * np.exp(-gamma * r**2)
+                noise = rng.normal(0, 1, size=dim)
+                xi = xi + beta * (xj - xi) + alpha_curr * noise * (scale_noise/2)
+                xi = np.clip(xi, lo, hi)
+                
+            x[i] = xi
+            vals[i] = func_objetivo(xi[0], xi[1])
+            history[i].append(xi.copy())
+            
+        # Decaimiento de aleatoriedad
+        alpha_curr *= alpha_decay
+        
+        # Actualizar mejor global
+        if mode == 'max':
+            idx = np.argmax(vals)
+            is_new_best = (vals[idx] > best_val)
+        else:
+            idx = np.argmin(vals)
+            is_new_best = (vals[idx] < best_val)
+            
+        if is_new_best:
+            best_val = vals[idx]
+            best_pos = x[idx].copy()
+                
+        dibujar(t)
+        
+    print(f"\nResultado final FA -> mejor = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}")
+    plt.ioff()
+    plt.show()
