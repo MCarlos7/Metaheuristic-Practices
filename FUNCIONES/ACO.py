@@ -118,11 +118,9 @@ def dibujar(iteracion, sols, vals, best_pos, best_val, history):
 def compute_weights(m,q):
     #indice k desde 1..m
     k = np.arange(1, m+1)
-    # peso no normalizado
     denom = q * m * np.sqrt(2 * np.pi)
     numer = np.exp(-(k - 1)**2 / (2 * (q * m)**2))
     w = numer / denom
-    # Normalizar los pesos para que sumen 1, convirtiéndolos en probabilidades válidas
     w = w / np.sum(w)
     return w
 
@@ -185,7 +183,6 @@ for it in range(1, NUM_ITERACIONES + 1):
     # Dibujar el estado actual
     dibujar(it, np.vstack((archive_X, new_sols)), np.concatenate((archive_vals, new_vals)), best_pos, best_val, history)
     
-    # CORRECCIÓN CRÍTICA: Actualizar el archivo para la siguiente iteración
     archive_X = combined_X.copy()
     archive_vals = combined_vals.copy()
     

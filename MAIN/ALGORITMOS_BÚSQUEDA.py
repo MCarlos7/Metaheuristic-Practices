@@ -599,3 +599,144 @@ def firefly_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=80, num
     print(f"\nResultado final FA -> mejor = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}")
     plt.ioff()
     plt.show()
+    
+    
+# ----------------------------------
+# ACO
+# ----------------------------------
+
+def aco_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=70, num_ants=30, archive_size=25, q=0.5, xi=0.85, pause=0.25, mode='max'):
+    lo, hi = bounds
+    dim = 2
+    rng = np.random.default_rng(42)
+    grid_res = 160
+    trail_length = 6
+
+    # 1. Crear archivo de feromonas
+    archive_X = rng.uniform(lo, hi, size=(archive_size, dim))
+    archive_vals = np.array([func_objetivo(x, y) for x, y in archive_X])
+
+    # Ordenar por calidad (según el modo)
+    if mode == 'max':
+        order = np.argsort(-archive_vals)
+    else:
+        order = np.argsort(archive_vals)
+        
+    archive_X = archive_X[order]
+    archive_vals = archive_vals[order]
+
+    history = [ [archive_X[i].copy()] for i in range(archive_size) ]
+
+    best_pos = archive_X[0].copy()
+    best_val = archive_vals[0]
+
+    # Preparar malla para visualización
+    Xg = np.linspace(lo, hi, grid_res)
+    Yg = np.linspace(lo, hi, grid_res)
+    Xmg, Ymg = np.meshgrid(Xg, Yg)
+    Zmg = func_objetivo(Xmg, Ymg)
+
+    plt.ion()
+    fig = plt.figure(figsize=(14, 6))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122, projection='3d')
+
+    def dibujar(iteracion, sols, vals, history):
+        ax1.clear()
+        ax2.clear()
+        
+        # Contorno 2D
+        cont0 = ax1.contourf(Xmg, Ymg, Zmg, levels=40, cmap='viridis')
+        ax1.set_xlim(lo, hi)
+        ax1.set_ylim(lo, hi)
+        ax1.set_title(f'ACOR ({mode.upper()}) - Iter {iteracion+1}/{num_iteraciones}')
+        
+        if trail_length > 0:
+            for i in range(len(history)):
+                trail = np.array(history[i][-trail_length:])
+                L = trail.shape[0]
+                if L > 1:
+                    for j in range(L-1):
+                        a = 0.15 + 0.85 * (j + 1) / L
+                        ax1.plot(trail[j:j+2, 0], trail[j:j+2, 1], linewidth=1, alpha=a, color='cyan')
+                        
+        ax1.scatter(sols[:, 0], sols[:, 1], c='blue', s=36, label='Muestras')
+        ax1.scatter(best_pos[0], best_pos[1], c='red', s=140, marker='*', label='Mejor global')
+        ax1.legend(loc='upper right', fontsize='small')
+        
+        # 3D
+        ax2.plot_surface(Xmg, Ymg, Zmg, cmap='viridis', alpha=0.85, linewidth=0, antialiased=False)
+        ax2.set_xlim(lo, hi)
+        ax2.set_ylim(lo, hi)
+        ax2.scatter(sols[:, 0], sols[:, 1], vals, c='blue', s=36, edgecolor='black')
+        ax2.scatter(best_pos[0], best_pos[1], best_val, c='red', s=180, marker='*')
+        ax2.view_init(elev=35, azim=-60)
+        
+        plt.draw()
+        plt.pause(pause)
+
+    # Funciones auxiliares para ACO
+    def compute_weights(m, q_val):
+        k = np.arange(1, m+1)
+        denom = q_val * m * np.sqrt(2 * np.pi)
+        numer = np.exp(-(k - 1)**2 / (2 * (q_val * m)**2))
+        w = numer / denom
+        return w / np.sum(w)
+
+    def compute_sigma(archive):
+        m_arc, d = archive.shape
+        sigmas = np.zeros_like(archive)
+        for i in range(m_arc):
+            diffs = np.abs(archive[i] - archive)  
+            denom = max(1, m_arc-1)
+            sigmas[i] = xi * diffs.sum(axis=0) / denom
+            sigmas[i] = np.maximum(sigmas[i], 1e-6)
+        return sigmas
+
+    # Bucle principal ACO
+    for it in range(num_iteraciones):
+        m = archive_size
+        weights = compute_weights(m, q)
+        sigmas = compute_sigma(archive_X)
+         
+        new_sols = np.zeros((num_ants, dim))
+        new_vals = np.zeros(num_ants)
+        
+        cum_weights = np.cumsum(weights)
+        for a in range(num_ants):
+            r = rng.random()
+            k = np.searchsorted(cum_weights, r, side='right')
+            if k >= m: k = m - 1
+            
+            sample = rng.normal(loc=archive_X[k], scale=sigmas[k]) 
+            sample = np.clip(sample, lo, hi)
+            new_sols[a] = sample
+            new_vals[a] = func_objetivo(sample[0], sample[1])
+        
+        # Actualizar archivo
+        combined_X = np.vstack((archive_X, new_sols))
+        combined_vals = np.concatenate((archive_vals, new_vals))
+        
+        if mode == 'max':
+            order = np.argsort(-combined_vals)
+        else:
+            order = np.argsort(combined_vals)
+            
+        combined_X = combined_X[order][:archive_size]
+        combined_vals = combined_vals[order][:archive_size]
+        
+        for idx in range(archive_size):
+            history[idx].append(combined_X[idx].copy())
+        
+        # Actualizar mejor global (ya está en el índice 0 tras el ordenamiento)
+        best_pos = combined_X[0].copy()
+        best_val = combined_vals[0]
+            
+        dibujar(it, np.vstack((archive_X, new_sols)), np.concatenate((archive_vals, new_vals)), history)
+        
+        archive_X = combined_X.copy()
+        archive_vals = combined_vals.copy()
+        
+    print(f'\nResultado final ACO ---> best = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}')
+    plt.ioff()
+    plt.show()

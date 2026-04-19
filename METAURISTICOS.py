@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import time
 from MAIN.FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
 from MAIN.INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
-from MAIN.ALGORITMOS_BÚSQUEDA import hill_climbing, random_search, genetic_algorithm, pso, abc_algorithm, firefly_algorithm
+from MAIN.ALGORITMOS_BÚSQUEDA import hill_climbing, random_search, genetic_algorithm, pso, abc_algorithm, firefly_algorithm, aco_algorithm
+
 print("=== CONFIGURACIÓN DE OPTIMIZACIÓN ===")
 
 # 1. Función
@@ -25,6 +26,7 @@ print("3. Algoritmo Genético (Búsqueda Poblacional)")
 print("4. Particle Swarm Optimization - PSO (Enjambre de Partículas)")
 print("5. Artificial Bee Colony - ABC (Colonia de Abejas)")
 print("6. Firefly Algorithm (Algoritmo de Luciérnagas)")
+print("7. Ant Colony Optimization - ACO (Colonia de Hormigas)") # <- Nueva opción agregada
 input_algo = input("Ingresa el número: ")
 
 map_func = {'1': peaks, '2': Ackley, '3': Rastrigin, '4': Sphere}
@@ -57,9 +59,14 @@ if input_func in map_func:
     elif input_algo == '5':
         print(f"\nIniciando ABC - Artificial Bee Colony ({input_mode.upper()})...")
         abc_algorithm(func_elegida, mode=input_mode)
+        
     elif input_algo == '6':
         print(f"\nIniciando Firefly Algorithm ({input_mode.upper()})...")
         firefly_algorithm(func_elegida, mode=input_mode)
+        
+    elif input_algo == '7':
+        print(f"\nIniciando ACO - Ant Colony Optimization ({input_mode.upper()})...")
+        aco_algorithm(func_elegida, mode=input_mode)
 
     else:
         print("Algoritmo no válido.")
