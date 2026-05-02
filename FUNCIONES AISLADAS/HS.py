@@ -124,8 +124,8 @@ while iter_count < NUM_ITER and T > MIN_TEMP:
     
     #Asegurar Limites 
     
-    xn = np.clip(xn, lo, hi)
-    yn = np.clip(yn, lo, hi)
+    xn = np.clip(x_new, lo, hi)
+    yn = np.clip(y_new, lo, hi)
     
     f_new = peaks (xn, yn)
     delta = f_new - f_curr  # Positivo si mejora
