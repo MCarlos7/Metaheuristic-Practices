@@ -3,8 +3,8 @@
 # ========================================
 import numpy as np
 import matplotlib.pyplot as plt
-from MAIN.FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
-from MAIN.INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
+from FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
+from INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
 
 def hill_climbing(func_objetivo, init_method='aleatoria', n_init=15, bounds=(-3,3), step_size=0.3, step_decay=0.5, min_step=1e-3, pause=0.1, mode='max'):
     lo, hi = bounds
@@ -740,3 +740,255 @@ def aco_algorithm(func_objetivo, bounds=(-3.0, 3.0), num_iteraciones=70, num_ant
     print(f'\nResultado final ACO ---> best = ({best_pos[0]:.6f}, {best_pos[1]:.6f}), f(x,y) = {best_val:.6f}')
     plt.ioff()
     plt.show()
+    
+def simulated_annealing(funcion_objetivo, limites, mode='min', t_inicial=100.0, t_minima=1e-4, alpha=0.99, step_size=0.5, iteraciones=60, animar=True, pausa=0.01):
+    num_variables = len(limites)
+    limite_inf = np.array([l[0] for l in limites])
+    limite_sup = np.array([l[1] for l in limites])
+
+    x_curr = np.random.uniform(limite_inf, limite_sup, num_variables)
+    f_curr = funcion_objetivo(*x_curr)
+
+    x_best = np.copy(x_curr)
+    f_best = f_curr
+
+    T = t_inicial
+    iter_count = 0
+    history = [(x_curr[0], x_curr[1])] if num_variables >= 2 else []
+
+    # --- CONFIGURACIÓN DE LA MALLA VISUAL (SOLO 2D) ---
+    hacer_animacion = animar and num_variables == 2
+    if hacer_animacion:
+        grid_res = 80 # Resolución reducida ligeramente para mayor fluidez
+        X = np.linspace(limite_inf[0], limite_sup[0], grid_res)
+        Y = np.linspace(limite_inf[1], limite_sup[1], grid_res)
+        Xg, Yg = np.meshgrid(X, Y)
+        Zg = np.zeros_like(Xg)
+        for i in range(Xg.shape[0]):
+            for j in range(Xg.shape[1]):
+                Zg[i,j] = funcion_objetivo(Xg[i,j], Yg[i,j])
+                
+        plt.ion()
+        fig = plt.figure(figsize=(13, 6))
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122, projection='3d')
+
+    # --- BUCLE PRINCIPAL ---
+    while T > t_minima and iter_count < iteraciones:
+        iter_count += 1
+        x_new = x_curr + np.random.normal(0, step_size, num_variables)
+        x_new = np.clip(x_new, limite_inf, limite_sup)
+        
+        f_new = funcion_objetivo(*x_new)
+        delta = f_new - f_curr
+
+        if mode == 'min':
+            es_mejora = delta < 0
+            prob_aceptacion = np.exp(-delta / T)
+        else: 
+            es_mejora = delta > 0
+            prob_aceptacion = np.exp(delta / T)
+
+        if es_mejora:
+            x_curr = x_new
+            f_curr = f_new
+            if (mode == 'min' and f_curr < f_best) or (mode == 'max' and f_curr > f_best):
+                x_best = np.copy(x_curr)
+                f_best = f_curr
+        else:
+            if np.random.rand() < prob_aceptacion:
+                x_curr = x_new
+                f_curr = f_new
+
+        T *= alpha
+        
+        # --- LÓGICA DE DIBUJO EN VIVO ---
+        if hacer_animacion:
+            history.append((x_curr[0], x_curr[1]))
+            ax1.clear()
+            ax2.clear()
+            
+            # 2D Contour
+            ax1.contourf(Xg, Yg, Zg, levels=40, cmap='viridis')
+            ax1.set_xlim(limite_inf[0], limite_sup[0])
+            ax1.set_ylim(limite_inf[1], limite_sup[1])
+            ax1.set_title(f"SA - Iter: {iter_count} | T: {T:.4f} | F: {f_curr:.2f}")
+            
+            # Rastro
+            trail_length = 15
+            trail = np.array(history[-trail_length:])
+            if trail.shape[0] > 1:
+                ax1.plot(trail[:, 0], trail[:, 1], color='cyan', alpha=0.8, linewidth=1.5)
+                
+            ax1.scatter(x_curr[0], x_curr[1], color='blue', s=60, label='Actual')
+            ax1.scatter(x_best[0], x_best[1], color='red', s=80, marker='*', label='Mejor Global')
+            ax1.legend(loc='upper right', fontsize='small')
+            
+            # 3D Surface
+            ax2.plot_surface(Xg, Yg, Zg, cmap='viridis', alpha=0.7, linewidth=0, antialiased=False)
+            ax2.scatter(x_curr[0], x_curr[1], f_curr, color='blue', s=60)
+            ax2.scatter(x_best[0], x_best[1], f_best, color='red', s=100, marker='*')
+            ax2.set_xlim(limite_inf[0], limite_sup[0])
+            ax2.set_ylim(limite_inf[1], limite_sup[1])
+            ax2.view_init(elev=35, azim=60)
+            
+            plt.draw()
+            plt.pause(pausa)
+
+    if hacer_animacion:
+        plt.ioff()
+        plt.show()
+
+    return x_best, f_best
+
+def harmony_search(funcion_objetivo, limites, mode='min', hms=20, hmcr=0.95, par=0.3, bw=0.1, iteraciones=80, animar=True, pausa=0.25, trail_length=8):
+    num_variables = len(limites)
+    limite_inf = np.array([l[0] for l in limites])
+    limite_sup = np.array([l[1] for l in limites])
+
+    # Inicializar Harmony Memory (HM)
+    hm = np.random.uniform(limite_inf, limite_sup, (hms, num_variables))
+    hm_fitness = np.array([funcion_objetivo(*ind) for ind in hm])
+    
+    historial_fitness = []
+
+    # --- CONFIGURACIÓN DE LA MALLA VISUAL (SOLO 2D) ---
+    hacer_animacion = animar and num_variables == 2
+    if hacer_animacion:
+        grid_res = 80 
+        X = np.linspace(limite_inf[0], limite_sup[0], grid_res)
+        Y = np.linspace(limite_inf[1], limite_sup[1], grid_res)
+        Xg, Yg = np.meshgrid(X, Y)
+        Zg = np.zeros_like(Xg)
+        for i in range(Xg.shape[0]):
+            for j in range(Xg.shape[1]):
+                Zg[i,j] = funcion_objetivo(Xg[i,j], Yg[i,j])
+                
+        plt.ion()
+        fig = plt.figure(figsize=(13, 6))
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122, projection='3d')
+        
+        # Crear colorbar UNA sola vez
+        cont0 = ax1.contourf(Xg, Yg, Zg, levels=40, cmap='viridis')
+        cbar = plt.colorbar(cont0, ax=ax1, fraction=0.046, pad=0.04)
+        cbar.set_label('Valor de la función')
+        
+        # Historial para rastro (lista de listas para cada armonía)
+        history = [[hm[i].copy()] for i in range(hms)]
+
+    # --- BUCLE PRINCIPAL ---
+    for iteracion in range(1, iteraciones + 1):
+        nueva_armonia = np.zeros(num_variables)
+
+        for i in range(num_variables):
+            if np.random.rand() < hmcr:
+                indice_aleatorio = np.random.randint(0, hms)
+                nueva_armonia[i] = hm[indice_aleatorio, i]
+
+                if np.random.rand() < par:
+                    # Ajuste proporcional al rango de la variable
+                    delta = bw * (limite_sup[i] - limite_inf[i])
+                    ajuste = np.random.uniform(-delta, delta)
+                    nueva_armonia[i] += ajuste
+                    nueva_armonia[i] = np.clip(nueva_armonia[i], limite_inf[i], limite_sup[i])
+            else:
+                nueva_armonia[i] = np.random.uniform(limite_inf[i], limite_sup[i])
+
+        nuevo_fitness = funcion_objetivo(*nueva_armonia)
+
+        # Lógica de reemplazo dependiendo del modo
+        if mode == 'min':
+            peor_indice = np.argmax(hm_fitness)
+            es_mejor = nuevo_fitness < hm_fitness[peor_indice]
+        else: 
+            peor_indice = np.argmin(hm_fitness)
+            es_mejor = nuevo_fitness > hm_fitness[peor_indice]
+
+        if es_mejor:
+            hm[peor_indice] = nueva_armonia
+            hm_fitness[peor_indice] = nuevo_fitness
+            if hacer_animacion:
+                # Reemplazar historial de la peor armonía con la nueva
+                history[peor_indice].append(nueva_armonia.copy())
+        else:
+            if hacer_animacion:
+                # Mostrar actividad visual en una armonía aleatoria
+                r_idx = np.random.randint(0, hms)
+                history[r_idx].append(hm[r_idx].copy())
+                
+        # Guardar el mejor valor para la gráfica de convergencia final
+        if mode == 'min':
+            mejor_actual = np.min(hm_fitness)
+            mejor_indice = np.argmin(hm_fitness)
+        else:
+            mejor_actual = np.max(hm_fitness)
+            mejor_indice = np.argmax(hm_fitness)
+            
+        historial_fitness.append(mejor_actual)
+
+        # --- LÓGICA DE DIBUJO EN VIVO ---
+        if hacer_animacion:
+            mejor_pos = hm[mejor_indice]
+            mejor_val = hm_fitness[mejor_indice]
+            
+            ax1.clear()
+            ax2.clear()
+            
+            # Contorno 2D
+            ax1.contourf(Xg, Yg, Zg, levels=40, cmap='viridis')
+            ax1.set_xlim(limite_inf[0], limite_sup[0])
+            ax1.set_ylim(limite_inf[1], limite_sup[1])
+            ax1.set_title(f"Harmony Search ({mode.upper()}) - Iter: {iteracion}/{iteraciones}")
+            
+            # Dibujar rastros con degradado alpha
+            if trail_length > 0:
+                for idx_hist in range(len(history)):
+                    trail = np.array(history[idx_hist][-trail_length:])
+                    L = trail.shape[0]
+                    if L > 1:
+                        for k in range(L-1):
+                            a = 0.15 + 0.85 * (k+1)/L
+                            ax1.plot(trail[k:k+2, 0], trail[k:k+2, 1], linewidth=1.2, alpha=a, color='cyan')
+
+            # Dibujar armonías y la mejor
+            ax1.scatter(hm[:, 0], hm[:, 1], color='blue', s=36, label='HM (armonías)')
+            ax1.scatter(mejor_pos[0], mejor_pos[1], color='red', s=140, marker='*', label='Mejor Global')
+            ax1.legend(loc='upper right', fontsize='small')
+            
+            # Superficie 3D
+            ax2.plot_surface(Xg, Yg, Zg, cmap='viridis', alpha=0.86, linewidth=0, antialiased=False)
+            ax2.set_title("Superficie 3D")
+            ax2.set_xlim(limite_inf[0], limite_sup[0])
+            ax2.set_ylim(limite_inf[1], limite_sup[1])
+            ax2.scatter(hm[:, 0], hm[:, 1], hm_fitness, color='blue', s=36)
+            ax2.scatter(mejor_pos[0], mejor_pos[1], mejor_val, color='red', s=180, marker='*')
+            ax2.view_init(elev=35, azim=-60)
+            
+            plt.tight_layout()
+            plt.draw()
+            plt.pause(pausa)
+
+    if hacer_animacion:
+        plt.ioff()
+        plt.close() # Cierra la animación para dar paso a la tabla final
+
+    # Extraer el mejor resultado final
+    if mode == 'min':
+        mejor_indice = np.argmin(hm_fitness)
+    else:
+        mejor_indice = np.argmax(hm_fitness)
+        
+    mejor_solucion = hm[mejor_indice]
+    mejor_fitness = hm_fitness[mejor_indice]
+
+    # --- GRÁFICA DE CONVERGENCIA FINAL ---
+    plt.figure(figsize=(10, 6))
+    plt.plot(historial_fitness, label=f'Mejor Global HS ({mode.upper()})', color='green', linewidth=2)
+    plt.title('Curva de Convergencia - Harmony Search')
+    plt.xlabel('Iteración')
+    plt.ylabel('Valor de la Función Objetivo (Fitness)')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    plt.show()
+    return mejor_solucion, mejor_fitness

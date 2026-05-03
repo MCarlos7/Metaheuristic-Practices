@@ -1,9 +1,13 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import time
-from MAIN.FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
-from MAIN.INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
-from MAIN.ALGORITMOS_BÚSQUEDA import hill_climbing, random_search, genetic_algorithm, pso, abc_algorithm, firefly_algorithm, aco_algorithm
+from FUNCIONES_OBJETIVO import peaks, Ackley, Rastrigin, Sphere
+from INICIALIZACION import init_aleatoria, init_lhs, init_maxdistance
+from ALGORITMOS_BÚSQUEDA import (
+    hill_climbing, random_search, genetic_algorithm, pso, 
+    abc_algorithm, firefly_algorithm, aco_algorithm, 
+    simulated_annealing, harmony_search
+)
 
 print("=== CONFIGURACIÓN DE OPTIMIZACIÓN ===")
 
@@ -26,13 +30,24 @@ print("3. Algoritmo Genético (Búsqueda Poblacional)")
 print("4. Particle Swarm Optimization - PSO (Enjambre de Partículas)")
 print("5. Artificial Bee Colony - ABC (Colonia de Abejas)")
 print("6. Firefly Algorithm (Algoritmo de Luciérnagas)")
-print("7. Ant Colony Optimization - ACO (Colonia de Hormigas)") # <- Nueva opción agregada
+print("7. Ant Colony Optimization - ACO (Colonia de Hormigas)") 
+print("8. Simulated Annealing - SA (Recocido Simulado)") 
+print("9. Harmony Search - HS (Búsqueda Armónica)")     
 input_algo = input("Ingresa el número: ")
 
 map_func = {'1': peaks, '2': Ackley, '3': Rastrigin, '4': Sphere}
 
 if input_func in map_func:
     func_elegida = map_func[input_func]
+    
+    if input_func == '1': # Peaks
+        limites_problema = [(-3.0, 3.0), (-3.0, 3.0)]
+    elif input_func == '2': # Ackley
+        limites_problema = [(-32.768, 32.768), (-32.768, 32.768)]
+    elif input_func == '3': # Rastrigin
+        limites_problema = [(-5.12, 5.12), (-5.12, 5.12)]
+    elif input_func == '4': # Sphere
+        limites_problema = [(-100.0, 100.0), (-100.0, 100.0)]
     
     if input_algo == '1':
         print("\nSelecciona el algoritmo de inicialización para Hill Climbing:")
@@ -67,6 +82,18 @@ if input_func in map_func:
     elif input_algo == '7':
         print(f"\nIniciando ACO - Ant Colony Optimization ({input_mode.upper()})...")
         aco_algorithm(func_elegida, mode=input_mode)
+
+    elif input_algo == '8':
+        print(f"\nIniciando Simulated Annealing - SA ({input_mode.upper()})...")
+        mejor_x, mejor_f = simulated_annealing(func_elegida, limites=limites_problema, mode=input_mode, animar=True)
+        print(f"Mejor posición SA encontrada: {mejor_x}")
+        print(f"Mejor Fitness: {mejor_f}")
+
+    elif input_algo == '9':
+        print(f"\nIniciando Harmony Search - HS ({input_mode.upper()})...")
+        mejor_x, mejor_f = harmony_search(func_elegida, limites=limites_problema, mode=input_mode, animar=True)
+        print(f"Mejor posición HS encontrada: {mejor_x}")
+        print(f"Mejor Fitness: {mejor_f}")
 
     else:
         print("Algoritmo no válido.")
